@@ -1,0 +1,16 @@
+[workspace]
+members = ["bot", "notion"]
+resolver = "2"
+
+# [package]
+# name = "add_to_notion_oxid"
+# version = "0.1.0"
+# edition = "2021"
+
+# # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+# [[bin]]
+# name = "addToNotionBot"
+# path = "bot/src/main.rs"
+
+# [dependencies]
