@@ -5,10 +5,12 @@ use notion::{NewPage, Notion};
 use regex::Regex;
 use teloxide::net::Download;
 use teloxide::payloads::{EditMessageTextSetters, GetFile};
-use teloxide::types::ParseMode;
+use teloxide::types::{ParseMode, PhotoSize};
 use teloxide::utils::html::link;
 use teloxide::{prelude::*, utils::command::BotCommands};
 use tokio::fs;
+
+use crate::img_push::ImgPush;
 
 // #[derive(BotCommands, Clone)]
 // #[command(
@@ -68,29 +70,49 @@ use tokio::fs;
 //     Ok(())
 // }
 
-pub async fn message_handler(
+async fn handle_image(
     bot: Bot,
-    m: Message,
-    notion: Arc<Notion>,
-) -> Result<(), Box<dyn Error + Send + Sync>> {
-    let chat_id = m.chat.id;
+    image: Option<&[PhotoSize]>,
+    img_push: Arc<ImgPush>,
+) -> Option<String> {
+    let image = match image {
+        Some(images) => images.iter().last(),
+        None => None,
+    };
 
-    // let image = match m.photo() {
-    //     Some(images) => images.iter().last(),
-    //     None => None,
-    // };
+    match image {
+        Some(image) => {
+            let file = bot.get_file(image.file.id.to_owned()).send().await;
 
-    // if let Some(image) = image {
-    //     // let get_file = GetFile::new(image.file.id.to_owned());
-    //     if let Ok(file) = bot.get_file(image.file.id.to_owned()).send().await {
-    //         let mut dst = fs::File::create("/tmp/test.png").await.unwrap();
-    //         bot.download_file(&file.path, &mut dst).await.unwrap();
-    //     }
-    // }
+            match file {
+                Ok(res) => {
+                    let tg_url = format!(
+                        "https://api.telegram.org/file/bot{}/{}",
+                        bot.token(),
+                        &res.path
+                    );
+                    let image_url = img_push.upload(&tg_url).await.unwrap();
 
-    let text = m.text().unwrap().to_string();
+                    Some(image_url)
+                }
+                Err(err) => {
+                    None
+                }
+            }
+        }
+        None => None,
+    }
+}
 
-    let name = text.lines().next().unwrap_or(&text).to_string();
+#[derive(Default)]
+struct TextElements {
+    pub title: Option<String>,
+    pub url: Option<String>,
+    pub tags: Option<Vec<String>>,
+}
+
+fn handle_text(bot: Bot, text: String) -> TextElements {
+    let title = text.lines().next().unwrap_or(&text).to_string();
 
     let links_reg: Regex = Regex::new(r"(https?:\/\/[^\s]+)").unwrap();
     let links = match_regex(links_reg, &text);
@@ -99,28 +121,45 @@ pub async fn message_handler(
     let tags_reg: Regex = Regex::new(r"\s(?:@|#)(\w+)").unwrap();
     let tags = match_regex(tags_reg, &text);
 
+    TextElements {
+        title: Some(title),
+        url: first_link,
+        tags,
+    }
+}
+
+pub async fn message_handler(
+    bot: Bot,
+    m: Message,
+    notion: Arc<Notion>,
+    img_push: Arc<ImgPush>,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let text = m.text().unwrap_or("").to_string() + m.caption().unwrap_or("");
+
+    let text_elements = handle_text(bot.clone(), text);
+    let image_url = handle_image(bot.clone(), m.photo(), img_push).await;
+
+    // TODO, read from dialogue
     let database_id = env::var("DATABASE_ID").expect("DATABASE_ID not set");
     let database = notion.get_database_by_id(database_id).await.unwrap();
 
     let new_page = NewPage {
         parent_database: database,
-        name,
-        tags,
-        url: first_link,
-        image_url: None,
+        name: text_elements.title,
+        tags: text_elements.tags,
+        url: text_elements.url,
+        image_url,
     };
 
     let page = notion.create_page(new_page).await.unwrap();
-    let page_id = page.id.to_string();
+    let page_id = page.id.to_string().replace("-", "");
 
     let msg = bot
         .send_message(
-            chat_id,
-            format!(
-                "Created page https://notion.so/{}",
-                page_id.replace("-", "")
-            ),
+            m.chat.id,
+            format!("Created page https://notion.so/{page_id}"),
         )
+        .reply_to_message_id(m.id)
         .await?;
 
     Ok(())

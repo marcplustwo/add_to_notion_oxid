@@ -11,7 +11,7 @@ use rusticnotion::{
 
 pub struct NewPage {
     pub parent_database: Database,
-    pub name: String,
+    pub name: Option<String>,
     pub url: Option<String>,
     pub image_url: Option<String>,
     pub tags: Option<Vec<String>>,
@@ -23,23 +23,27 @@ impl NewPage {
     }
 
     pub fn get_name_property(&self) -> Option<PropertyValue> {
-        let name_property: PropertyValue = PropertyValue::Title {
-            id: self.empty_id(),
-            title: [RichText::Text {
-                text: Text {
-                    content: self.name.clone(),
-                    link: None,
-                },
-                rich_text: RichTextCommon {
-                    plain_text: self.name.clone(),
-                    href: None,
-                    annotations: None,
-                },
-            }]
-            .to_vec(),
-        };
+        if let Some(name) = &self.name {
+            let name_property: PropertyValue = PropertyValue::Title {
+                id: self.empty_id(),
+                title: [RichText::Text {
+                    text: Text {
+                        content: name.clone(),
+                        link: None,
+                    },
+                    rich_text: RichTextCommon {
+                        plain_text: name.clone(),
+                        href: None,
+                        annotations: None,
+                    },
+                }]
+                .to_vec(),
+            };
 
-        Some(name_property)
+            Some(name_property)
+        } else {
+            None
+        }
     }
 
     pub fn get_url_property(&self) -> Option<PropertyValue> {
