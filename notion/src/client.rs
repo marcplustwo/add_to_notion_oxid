@@ -25,12 +25,11 @@ impl Notion {
         let search = NotionSearch::filter_by_databases();
         let response = self.api.search(search).await.unwrap().only_databases();
 
-        if let Some(result) = response
+        if let Some(database) = response
             .results
             .iter()
             .find(|res| res.id.to_string().replace("-", "") == database_id)
         {
-            let database = result;
             if Notion::has_expected_database_properties(database.to_owned()) {
                 Ok(database.to_owned())
             } else {
@@ -75,7 +74,7 @@ impl Notion {
                 database_id: new_page.parent_database.id,
             },
             properties,
-            children: None,
+            children: None, // TODO
         };
 
         let resp = self.api.create_page(page).await.unwrap();

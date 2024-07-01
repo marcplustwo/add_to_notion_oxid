@@ -1,30 +1,38 @@
 #![allow(unused)]
 
 use dotenvy::dotenv;
+use handlers::message_handler;
 use notion::{NewPage, Notion};
 use std::env;
 use std::fmt::Error;
+use std::sync::Arc;
+
+use teloxide::prelude::*;
+
+mod handlers;
+mod image_upload;
 
 #[tokio::main]
 async fn main() -> Result<(), String> {
     dotenv().expect(".env file not found");
 
     let notion_api_token = env::var("NOTION_API_TOKEN").expect("NOTION_API_TOKEN not set");
-    let database_id = env::var("DATABASE_ID").expect("DATABASE_ID not set");
 
-    let client = Notion::new(notion_api_token);
-    let database = client.get_database_by_id(database_id).await.unwrap();
+    let notion = Arc::new(Notion::new(notion_api_token));
 
-    let new_page = NewPage {
-        parent_database: database,
-        name: "new page".to_string(),
-        url: Some("https://www.google.com/".to_string()),
-        image_url: None,
-        // TODO match existing tags, so they have the same color
-        tags: Some(["beach".to_string(), "vacation".to_string()].to_vec()),
-    };
+    let handler = dptree::entry().branch(Update::filter_message().endpoint(message_handler));
 
-    let page = client.create_page(new_page).await;
+    let bot = Bot::from_env();
+    Dispatcher::builder(bot, handler)
+        .dependencies(dptree::deps![notion])
+        .enable_ctrlc_handler()
+        .build()
+        .dispatch()
+        .await;
+
+    log::info!("Closing bot... Goodbye!");
+
+    // dialogue: get notion_api_key and database?
 
     Ok(())
 }
