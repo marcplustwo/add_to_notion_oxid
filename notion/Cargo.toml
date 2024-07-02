@@ -6,4 +6,5 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rusticnotion = { git = "https://github.com/marcplustwo/rusticnotion.git" }
+# rusticnotion = { git = "https://github.com/marcplustwo/rusticnotion.git" }
+rusticnotion = { path = "../rusticnotion" }

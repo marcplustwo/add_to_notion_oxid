@@ -5,102 +5,56 @@ use notion::{NewPage, Notion};
 use regex::Regex;
 use teloxide::net::Download;
 use teloxide::payloads::{EditMessageTextSetters, GetFile};
-use teloxide::types::{ParseMode, PhotoSize};
+use teloxide::types::{Document, ParseMode, PhotoSize};
 use teloxide::utils::html::link;
 use teloxide::{prelude::*, utils::command::BotCommands};
 use tokio::fs;
 
 use crate::img_push::ImgPush;
 
-// #[derive(BotCommands, Clone)]
-// #[command(
-//     rename_rule = "lowercase",
-//     description = "These commands are supported:"
-// )]
-// enum Command {
-//     Isbn(String),
-//     Title(String),
-//     Author(String),
-// }
-
-// impl From<Command> for Search {
-//     fn from(command: Command) -> Self {
-//         match command {
-//             Command::Author(author) => Search::Author(author),
-//             Command::Title(title) => Search::Title(title),
-//             Command::Isbn(isbn) => Search::Isbn(isbn),
-//         }
-//     }
-// }
-
-// pub async fn callback_handler(
-//     q: CallbackQuery,
-//     bot: Bot,
-//     utils: Arc<Utils>,
-// ) -> Result<(), Box<dyn Error + Send + Sync>> {
-//     let (user_id, chat_id) = match q.message {
-//         Some(Message { id, chat, .. }) => (id, chat.id),
-//         None => return Ok(()),
-//     };
-
-//     let ids = match q.data {
-//         Some(id) => vec![id.parse().unwrap()],
-//         None => {
-//             bot.edit_message_text(chat_id, user_id, "💥").await?;
-//             return Ok(());
-//         }
-//     };
-
-//     let book = match get_ids(&utils.client, ids).await {
-//         Ok(mut books) => books.remove(0),
-//         Err(_) => {
-//             bot.edit_message_text(chat_id, user_id, "💥").await?;
-//             return Ok(());
-//         }
-//     };
-
-//     utils.register(chat_id.0, user_id.0, "SELECTION")?;
-
-//     let url_keyboard = make_url_keyboard(&book.md5_url());
-//     bot.edit_message_text(chat_id, user_id, book.pretty())
-//         .parse_mode(ParseMode::Html)
-//         .reply_markup(url_keyboard)
-//         .await?;
-
-//     Ok(())
-// }
-
-async fn handle_image(
-    bot: Bot,
-    image: Option<&[PhotoSize]>,
-    img_push: Arc<ImgPush>,
-) -> Option<String> {
+fn get_image_id(bot: Bot, image: Option<&[PhotoSize]>) -> Option<String> {
     let image = match image {
         Some(images) => images.iter().last(),
         None => None,
     };
 
     match image {
-        Some(image) => {
-            let file = bot.get_file(image.file.id.to_owned()).send().await;
-
-            match file {
-                Ok(res) => {
-                    let tg_url = format!(
-                        "https://api.telegram.org/file/bot{}/{}",
-                        bot.token(),
-                        &res.path
-                    );
-                    let image_url = img_push.upload(&tg_url).await.unwrap();
-
-                    Some(image_url)
-                }
-                Err(err) => {
-                    None
-                }
-            }
-        }
+        Some(image) => Some(image.file.id.to_owned()),
         None => None,
+    }
+}
+
+fn get_document_id(bot: Bot, document: Option<&Document>) -> Option<String> {
+    if let Some(document) = document {
+        if let Some(mime) = &document.mime_type {
+            match (mime.type_(), mime.subtype()) {
+                (mime::IMAGE, mime::JPEG) => Some(document.file.id.to_owned()),
+                (mime::IMAGE, mime::PNG) => Some(document.file.id.to_owned()),
+                _ => None,
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}
+
+async fn upload_image_file(bot: Bot, img_push: Arc<ImgPush>, file_id: String) -> Option<String> {
+    let file = bot.get_file(file_id.to_owned()).send().await;
+
+    match file {
+        Ok(res) => {
+            let tg_url = format!(
+                "https://api.telegram.org/file/bot{}/{}",
+                bot.token(),
+                &res.path
+            );
+            let image_url = img_push.upload(&tg_url).await.unwrap();
+
+            Some(image_url)
+        }
+        Err(err) => None,
     }
 }
 
@@ -137,7 +91,23 @@ pub async fn message_handler(
     let text = m.text().unwrap_or("").to_string() + m.caption().unwrap_or("");
 
     let text_elements = handle_text(bot.clone(), text);
-    let image_url = handle_image(bot.clone(), m.photo(), img_push).await;
+
+    let image_file_id = get_image_id(bot.clone().clone(), m.photo());
+    let document_file_id = get_document_id(bot.clone(), m.document());
+
+    let mut urls = vec![];
+    if let Some(id) = image_file_id {
+        if let Some(url) = upload_image_file(bot.clone(), img_push.clone(), id).await {
+            urls.push(url);
+        }
+    };
+    if let Some(id) = document_file_id {
+        if let Some(url) = upload_image_file(bot.clone(), img_push.clone(), id).await {
+            urls.push(url);
+        }
+    };
+
+    let image_url = urls.iter().next();
 
     // TODO, read from dialogue
     let database_id = env::var("DATABASE_ID").expect("DATABASE_ID not set");
@@ -148,7 +118,7 @@ pub async fn message_handler(
         name: text_elements.title,
         tags: text_elements.tags,
         url: text_elements.url,
-        image_url,
+        image_url: image_url.cloned(),
     };
 
     let page = notion.create_page(new_page).await.unwrap();
@@ -177,21 +147,3 @@ fn match_regex(reg: Regex, text: &String) -> Option<Vec<String>> {
         None
     }
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-
-//     #[test]
-//     fn test_match_tags() {
-//         let tags = match_regex("hallo #beach #vacay\nok #lol".to_string());
-//         assert_eq!(
-//             tags,
-//             Some(vec![
-//                 "beach".to_string(),
-//                 "vacay".to_string(),
-//                 "lol".to_string()
-//             ])
-//         );
-//     }
-// }

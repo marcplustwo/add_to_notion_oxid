@@ -2,8 +2,10 @@ use std::collections::HashMap;
 
 use rusticnotion::{
     models::{
-        properties::PropertyValue, search::NotionSearch, Database, Page, PageCreateRequest,
-        Properties,
+        block::{BookmarkFields, CreateBlock, ExternalFileObject},
+        properties::PropertyValue,
+        search::NotionSearch,
+        Database, Page, PageCreateRequest, Properties,
     },
     NotionApi,
 };
@@ -69,12 +71,46 @@ impl Notion {
             .collect::<HashMap<String, PropertyValue>>(),
         };
 
+        let image_block: Option<CreateBlock> = if let Some(image_url) = new_page.image_url {
+            Some(CreateBlock::Image {
+                image: rusticnotion::models::block::FileObject::External {
+                    external: ExternalFileObject { url: image_url },
+                },
+            })
+        } else {
+            None
+        };
+
+        let bookmark: Option<CreateBlock> = if let Some(url) = new_page.url {
+            Some(CreateBlock::Bookmark {
+                bookmark: BookmarkFields {
+                    url,
+                    caption: vec![],
+                },
+            })
+        } else {
+            None
+        };
+
+        let blocks: Option<Vec<Option<CreateBlock>>> = Some([image_block, bookmark].to_vec());
+
+        let children = if let Some(blocks) = blocks {
+            let children = blocks
+                .iter()
+                .filter(|block| block.is_some())
+                .map(|block| block.to_owned().unwrap())
+                .collect::<Vec<CreateBlock>>();
+            Some(children)
+        } else {
+            None
+        };
+
         let page = PageCreateRequest {
             parent: rusticnotion::models::Parent::Database {
                 database_id: new_page.parent_database.id,
             },
             properties,
-            children: None, // TODO
+            children,
         };
 
         let resp = self.api.create_page(page).await.unwrap();
