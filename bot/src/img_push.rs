@@ -1,27 +1,3 @@
-// const uploadFile = async (telegramURL: string): Promise<string> => {
-//   const resp = await axios.post(
-//     config.imgUploadURL,
-//     {
-//       url: telegramURL,
-//     },
-//     {
-//       headers: {
-//         "Content-Type": "application/json",
-//       },
-//     }
-//   );
-
-//   if (resp.status != 200) {
-//     throw new Error("Error uploading file.");
-//   }
-
-//   const data: { filename: string } = await resp.data;
-
-//   return `${config.imgUploadURL}/${data.filename}`;
-// };
-
-// export { uploadFile };
-
 use std::collections::HashMap;
 
 use reqwest::{self, StatusCode};
@@ -47,14 +23,11 @@ impl ImgPush {
         let client = reqwest::Client::new();
         let resp = client.post(&self.url).json(&body).send().await.unwrap();
 
-        // const data: { filename: string } = await resp.data;
-        // let t = resp.text().await.unwrap();
-
         if let Err(err) = resp.error_for_status_ref() {
             return Err(err.to_string());
         }
 
-        let status = resp.status();
+        // todo throw error if status != 200
         // if status != 200 {
         //     return Err(format!("Server error when uploading: {t}"));
         // }
