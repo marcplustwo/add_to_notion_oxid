@@ -10,6 +10,8 @@ use teloxide::utils::html::link;
 use teloxide::{prelude::*, utils::command::BotCommands};
 use tokio::fs;
 
+use crate::db::Database;
+use crate::handle_dialogue::{SetupDialogue, State};
 use crate::img_push::ImgPush;
 
 fn get_image_id(bot: Bot, image: Option<&[PhotoSize]>) -> Option<String> {
@@ -85,13 +87,21 @@ fn handle_text(bot: Bot, text: String) -> TextElements {
 pub async fn message_handler(
     bot: Bot,
     m: Message,
-    notion: Arc<Notion>,
+    dialogue: SetupDialogue,
+    db: Arc<Database>,
     img_push: Arc<ImgPush>,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let user_details_query = db.get(&m.chat.id.to_string())?;
+    if user_details_query.is_none() {
+        dialogue.update(State::ReceiveIntegrationToken).await?;
+        return Ok(());
+    }
+
+    let user_details = user_details_query.unwrap();
+
     let text = m.text().unwrap_or("").to_string() + m.caption().unwrap_or("");
 
     let text_elements = handle_text(bot.clone(), text);
-
     let image_file_id = get_image_id(bot.clone().clone(), m.photo());
     let document_file_id = get_document_id(bot.clone(), m.document());
 
@@ -109,9 +119,11 @@ pub async fn message_handler(
 
     let image_url = urls.iter().next();
 
-    // TODO, read from dialogue
-    let database_id = env::var("DATABASE_ID").expect("DATABASE_ID not set");
-    let database = notion.get_database_by_id(database_id).await.unwrap();
+    let notion = Notion::new(user_details.integration_token);
+    let database = notion
+        .get_database_by_id(user_details.database_id)
+        .await
+        .unwrap();
 
     let new_page = NewPage {
         parent_database: database,
@@ -120,7 +132,6 @@ pub async fn message_handler(
         url: text_elements.url,
         image_url: image_url.cloned(),
     };
-
     let page = notion.create_page(new_page).await.unwrap();
     let page_id = page.id.to_string().replace("-", "");
 

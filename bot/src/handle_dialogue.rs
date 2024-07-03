@@ -1,14 +1,20 @@
-use std::process::exit;
+use std::{process::exit, sync::Arc};
 
-use teloxide::{dispatching::dialogue::InMemStorage, prelude::*};
+use teloxide::{dispatching::dialogue::InMemStorage, prelude::*, types::ParseMode};
 
-type SetupDialogue = Dialogue<State, InMemStorage<State>>;
+use crate::{
+    constants::INSTRUCTIONS_MSG,
+    db::{Database, UserDetails},
+};
+
+pub type SetupDialogue = Dialogue<State, InMemStorage<State>>;
 type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
 #[derive(Clone, Default)]
 pub enum State {
     #[default]
     Start,
+    Instructions,
     ReceiveIntegrationToken,
     ReceiveDatabaseId {
         integration_token: String,
@@ -17,13 +23,25 @@ pub enum State {
         integration_token: String,
         database_id: String,
     },
+    SetupComplete,
 }
 
-pub async fn start(bot: Bot, dialogue: SetupDialogue, msg: Message) -> HandlerResult {
-    // TODO: instructions message
-    bot.send_message(msg.chat.id, "This will be the instructions message")
+pub async fn start(
+    bot: Bot,
+    dialogue: SetupDialogue,
+    msg: Message,
+    db: Arc<Database>,
+) -> HandlerResult {
+    let user_details = db.get(&msg.chat.id.to_string())?;
+    if user_details.is_some() {
+        dialogue.update(State::SetupComplete).await?;
+        return Ok(())
+    }
+
+    bot.send_message(msg.chat.id, INSTRUCTIONS_MSG)
+        .parse_mode(ParseMode::MarkdownV2)
         .await?;
-    bot.send_message(msg.chat.id, "Send the integration_token")
+    bot.send_message(msg.chat.id, "Please pass me the Notion integration token")
         .await?;
     dialogue.update(State::ReceiveIntegrationToken).await?;
     Ok(())
@@ -36,7 +54,7 @@ pub async fn receive_integration_token(
 ) -> HandlerResult {
     match msg.text() {
         Some(text) => {
-            bot.send_message(msg.chat.id, "Send the database_id")
+            bot.send_message(msg.chat.id, "Please send the database id now")
                 .await?;
             dialogue
                 .update(State::ReceiveDatabaseId {
@@ -57,18 +75,22 @@ pub async fn receive_database_id(
     dialogue: SetupDialogue,
     msg: Message,
     integration_token: String,
-    database_id: String,
 ) -> HandlerResult {
     match msg.text() {
         Some(text) => {
+            let database_id = text.to_owned();
+
             let report =
-                format!("integration_token: {integration_token}, database_id {database_id}");
+                format!("Integration Token: {integration_token}\nDatabase ID: {database_id}");
+
+            bot.send_message(msg.chat.id, "Please confirm the following data with yes")
+                .await?;
             bot.send_message(msg.chat.id, report).await?;
-            bot.send_message(msg.chat.id, "Please confirm").await?;
+
             dialogue
                 .update(State::Confirm {
                     integration_token,
-                    database_id: text.to_owned(),
+                    database_id,
                 })
                 .await?;
         }
@@ -80,11 +102,34 @@ pub async fn receive_database_id(
     Ok(())
 }
 
-pub async fn receive_confirm(bot: Bot, dialogue: SetupDialogue, msg: Message) -> HandlerResult {
+pub async fn receive_confirm(
+    bot: Bot,
+    dialogue: SetupDialogue,
+    msg: Message,
+    db: Arc<Database>,
+    (integration_token, database_id): (String, String),
+) -> HandlerResult {
     match msg.text() {
         Some(text) => {
-            bot.send_message(msg.chat.id, "Ok!").await?;
-            dialogue.exit().await?;
+            if text.to_lowercase().contains("yes") {
+                bot.send_message(
+                    msg.chat.id,
+                    "You can now start feeding your Notion Webdump!",
+                )
+                .await?;
+
+                db.register(UserDetails {
+                    user_id: msg.chat.id.to_string(),
+                    integration_token,
+                    database_id,
+                })?;
+
+                // dialogue.exit().await?;
+                dialogue.update(State::SetupComplete).await?;
+            } else {
+                bot.send_message(msg.chat.id, format!("Try again.")).await?;
+                dialogue.update(State::Start).await?;
+            }
         }
         None => {
             bot.send_message(msg.chat.id, "Send me plain text.").await?;
@@ -93,42 +138,3 @@ pub async fn receive_confirm(bot: Bot, dialogue: SetupDialogue, msg: Message) ->
 
     Ok(())
 }
-
-// async fn receive_age(
-//     bot: Bot,
-//     dialogue: SetupDialogue,
-//     full_name: String, // Available from `State::ReceiveAge`.
-//     msg: Message,
-// ) -> HandlerResult {
-//     match msg.text().map(|text| text.parse::<u8>()) {
-//         Some(Ok(age)) => {
-//             bot.send_message(msg.chat.id, "What's your location?").await?;
-//             dialogue.update(State::ReceiveLocation { full_name, age }).await?;
-//         }
-//         _ => {
-//             bot.send_message(msg.chat.id, "Send me a number.").await?;
-//         }
-//     }
-
-//     Ok(())
-// }
-
-// async fn receive_location(
-//     bot: Bot,
-//     dialogue: MyDialogue,
-//     (full_name, age): (String, u8), // Available from `State::ReceiveLocation`.
-//     msg: Message,
-// ) -> HandlerResult {
-//     match msg.text() {
-//         Some(location) => {
-//             let report = format!("Full name: {full_name}\nAge: {age}\nLocation: {location}");
-//             bot.send_message(msg.chat.id, report).await?;
-//             dialogue.exit().await?;
-//         }
-//         None => {
-//             bot.send_message(msg.chat.id, "Send me plain text.").await?;
-//         }
-//     }
-
-//     Ok(())
-// }
