@@ -116,7 +116,7 @@ pub async fn receive_confirm(
                 // dialogue.exit().await?;
                 dialogue.update(State::SetupComplete).await?;
             } else {
-                bot.send_message(msg.chat.id, format!("Try again")).await?;
+                bot.send_message(msg.chat.id, format!("Try again by sending a message to activate the setup")).await?;
                 dialogue.update(State::Instructions).await?;
             }
         }

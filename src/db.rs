@@ -39,6 +39,19 @@ impl Database {
         Ok(())
     }
 
+    pub fn delete(&self, user_id: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+
+        conn.execute(
+            "DELETE
+            FROM user_details
+            WHERE user_id = ?1;",
+            params![user_id],
+        )?;
+
+        Ok(())
+    }
+
     pub fn get(&self, user_id: &str) -> Result<Option<UserDetails>> {
         let conn = self.conn.lock().unwrap();
 
@@ -112,10 +125,14 @@ mod tests {
 
         db.register(user_details.clone())?;
         let result = db.get("1")?;
+        assert_eq!(Some(user_details), result);
+
+        db.delete("1")?;
+        let result = db.get("1")?;
+        assert_eq!(None, result);
 
         remove_db_if_exists(db_path);
 
-        assert_eq!(Some(user_details), result);
         Ok(())
     }
 
@@ -131,6 +148,21 @@ mod tests {
         remove_db_if_exists(db_path);
 
         assert_eq!(None, result);
+        Ok(())
+    }
+
+    #[test]
+    fn delete_non_existent() -> Result<()> {
+        let db_path = "test_db_3.sqlite";
+        remove_db_if_exists(db_path);
+
+        let db = Database::new(db_path)?;
+
+        let res = db.delete("1");
+        assert!(res.is_ok());
+
+        remove_db_if_exists(db_path);
+
         Ok(())
     }
 }

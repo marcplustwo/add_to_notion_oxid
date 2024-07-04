@@ -20,9 +20,6 @@ Next, you have to send me the page link so I know where to add your content
 These steps are explained again here:
 [Create a Notion Integration](https://developers\\.notion\\.com/docs/create\\-a\\-notion\\-integration)
 
-";
-// __Setup__
-// Use the command `/setup` to enter the necessary details
-
 // __Help__
 // Use the command `/help` to show this message
+";

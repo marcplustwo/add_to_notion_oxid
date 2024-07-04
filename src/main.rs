@@ -8,8 +8,7 @@ use std::sync::Arc;
 mod bot;
 mod constants;
 mod db;
-mod handle_dialogue;
-mod handle_message;
+mod handlers;
 mod img_push;
 mod notion;
 
@@ -25,8 +24,9 @@ async fn main() -> Result<(), String> {
 
     let img_push_url = env::var("IMG_PUSH_URL").expect("IMG_PUSH_URL not set");
     env::var("TELOXIDE_TOKEN").expect("TELOXIDE_TOKEN not set");
+    let db_path = env::var("DB_PATH").unwrap_or("db/db.sqlite".to_string());
 
-    let db = Arc::new(Database::new("db/db.sqlite").unwrap());
+    let db = Arc::new(Database::new(&db_path).unwrap());
     let img_push = Arc::new(ImgPush::new(img_push_url));
 
     run_bot(db, img_push).await;
