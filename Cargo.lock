@@ -3,6 +3,23 @@
 version = 3
 
 [[package]]
+name = "add_to_notion_bot_oxid"
+version = "0.1.0"
+dependencies = [
+ "dotenvy",
+ "log",
+ "mime",
+ "pretty_env_logger",
+ "regex",
+ "reqwest 0.12.5",
+ "rusqlite",
+ "rusticnotion",
+ "serde",
+ "teloxide",
+ "tokio",
+]
+
+[[package]]
 name = "addr2line"
 version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -127,23 +144,6 @@ name = "bitflags"
 version = "2.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b048fb63fd8b5923fc5aa7b340d8e156aec7ec02f0c78fa8a6ddc2613f6f71de"
-
-[[package]]
-name = "bot"
-version = "0.1.0"
-dependencies = [
- "dotenvy",
- "log",
- "mime",
- "notion",
- "pretty_env_logger",
- "regex",
- "reqwest 0.12.5",
- "rusqlite",
- "serde",
- "teloxide",
- "tokio",
-]
 
 [[package]]
 name = "bumpalo"
@@ -920,13 +920,6 @@ name = "never"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c96aba5aa877601bb3f6dd6a63a969e1f82e60646e81e71b14496995e9853c91"
-
-[[package]]
-name = "notion"
-version = "0.1.0"
-dependencies = [
- "rusticnotion",
-]
 
 [[package]]
 name = "num-traits"

@@ -1,16 +1,19 @@
-[workspace]
-members = ["bot", "notion"]
-resolver = "2"
+[package]
+name = "add_to_notion_bot_oxid"
+version = "0.1.0"
+edition = "2021"
 
-# [package]
-# name = "add_to_notion_oxid"
-# version = "0.1.0"
-# edition = "2021"
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-# # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-# [[bin]]
-# name = "addToNotionBot"
-# path = "bot/src/main.rs"
-
-# [dependencies]
+[dependencies]
+teloxide = { version = "0.12.2", features = ["macros", "auto-send"] }
+dotenvy = "0.15.7"
+tokio = "1.38.0"
+log = "0.4"
+pretty_env_logger = "0.4"
+regex = "1.10.5"
+reqwest = { version = "0.12.5", features = ["json"] }
+serde = { version = "1.0.203", features = ["derive"] }
+mime = "0.3.17"
+rusqlite = "0.31.0"
+rusticnotion = { git = "https://github.com/marcplustwo/rusticnotion.git" }

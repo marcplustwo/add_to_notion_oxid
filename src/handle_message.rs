@@ -1,13 +1,11 @@
-use std::error::Error;
-use std::sync::Arc;
-
-use notion::{NewPage, Notion};
-use regex::Regex;
-use teloxide::prelude::*;
-use teloxide::types::{Document, PhotoSize};
-
 use crate::db::Database;
 use crate::img_push::ImgPush;
+use crate::notion::{NewPage, Notion};
+use regex::Regex;
+use std::error::Error;
+use std::sync::Arc;
+use teloxide::prelude::*;
+use teloxide::types::{Document, PhotoSize};
 
 fn get_image_id(image: Option<&[PhotoSize]>) -> Option<String> {
     let image = match image {

@@ -1,0 +1,11 @@
+services:
+  add_to_notion_bot_oxid:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: add_to_notion_bot_oxid
+    restart: always
+    volumes:
+      - ./db/:/app/db/
+    env_file:
+      - .env

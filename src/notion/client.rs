@@ -10,7 +10,7 @@ use rusticnotion::{
     NotionApi,
 };
 
-use crate::NewPage;
+use super::NewPage;
 
 pub struct Notion {
     api: NotionApi,
