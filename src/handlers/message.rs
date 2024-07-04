@@ -86,26 +86,6 @@ pub async fn message_handler(
     let user_details_query = db.get(&msg.chat.id.to_string())?;
     let user_details = user_details_query.unwrap();
 
-    let text = msg.text().unwrap_or("").to_string() + msg.caption().unwrap_or("");
-
-    let text_elements = handle_text(text);
-    let image_file_id = get_image_id(msg.photo());
-    let document_file_id = get_document_id(msg.document());
-
-    let mut urls = vec![];
-    if let Some(id) = image_file_id {
-        if let Some(url) = upload_image_file(bot.clone(), img_push.clone(), id).await {
-            urls.push(url);
-        }
-    };
-    if let Some(id) = document_file_id {
-        if let Some(url) = upload_image_file(bot.clone(), img_push.clone(), id).await {
-            urls.push(url);
-        }
-    };
-
-    let image_url = urls.iter().next();
-
     let notion = Notion::new(user_details.integration_token);
     let database = match notion.get_database_by_id(user_details.database_id).await {
         Ok(database) => database,
@@ -139,8 +119,28 @@ pub async fn message_handler(
         return Err(error_message.into());
     };
 
+    let text = msg.text().unwrap_or("").to_string() + msg.caption().unwrap_or("");
+
+    let text_elements = handle_text(text);
+    let image_file_id = get_image_id(msg.photo());
+    let document_file_id = get_document_id(msg.document());
+
+    let mut urls = vec![];
+    if let Some(id) = image_file_id {
+        if let Some(url) = upload_image_file(bot.clone(), img_push.clone(), id).await {
+            urls.push(url);
+        }
+    };
+    if let Some(id) = document_file_id {
+        if let Some(url) = upload_image_file(bot.clone(), img_push.clone(), id).await {
+            urls.push(url);
+        }
+    };
+
+    let image_url = urls.iter().next();
+
     let new_page = NewPage {
-        parent_database: database,
+        database,
         name: text_elements.title,
         tags: text_elements.tags,
         url: text_elements.url,

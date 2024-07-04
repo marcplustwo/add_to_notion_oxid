@@ -1,21 +1,33 @@
+use super::NewPage;
 use anyhow::{anyhow, Result};
 use rusticnotion::{
     models::{
         block::{BookmarkFields, CreateBlock, ExternalFileObject},
-        properties::PropertyValue,
+        properties::{PropertyConfiguration, PropertyValue},
         search::NotionSearch,
         Database, Page, PageCreateRequest, Properties,
     },
     NotionApi,
 };
 use std::collections::HashMap;
-use super::NewPage;
 
 pub struct Notion {
-    api: NotionApi,
+    pub api: NotionApi,
 }
 
 impl Notion {
+    pub fn has_expected_database_properties(database: &Database) -> bool {
+        const EXPECTED_DB_PROPERTIES: [&str; 4] = ["Name", "Image", "URL", "Tags"];
+
+        // verify fields
+        let db_has_expected_properties = EXPECTED_DB_PROPERTIES
+            .iter()
+            .map(|property| database.properties.contains_key(&property.to_string()))
+            .all(|x| x);
+
+        db_has_expected_properties
+    }
+
     pub fn new(api_token: String) -> Self {
         let api = NotionApi::new(api_token).unwrap();
 
@@ -37,25 +49,23 @@ impl Notion {
         }
     }
 
-    pub fn has_expected_database_properties(database: &Database) -> bool {
-        // let properties: Vec<&String> = database.properties.iter().map(|(name, _)| name).collect();
-        const EXPECTED_DB_PROPERTIES: [&str; 4] = ["Name", "Image", "URL", "Tags"];
-
-        // verify fields
-        let db_has_expected_properties = EXPECTED_DB_PROPERTIES
-            .iter()
-            .map(|property| database.properties.contains_key(&property.to_string()))
-            .all(|x| x);
-
-        db_has_expected_properties
-    }
-
     pub async fn create_page(&self, new_page: NewPage) -> Result<Page, String> {
+        let existing_tags = match new_page.database.properties.get("Tags").unwrap() {
+            PropertyConfiguration::MultiSelect {
+                id: _,
+                multi_select,
+            } => multi_select.options.clone(),
+            _ => vec![],
+        };
+
         let properties: Properties = Properties {
             properties: [
                 ("Name".to_string(), new_page.get_name_property()),
                 ("URL".to_string(), new_page.get_url_property()),
-                ("Tags".to_string(), new_page.get_tags_property()),
+                (
+                    "Tags".to_string(),
+                    new_page.get_tags_property(existing_tags),
+                ),
                 ("Image".to_string(), new_page.get_image_property()),
             ]
             .iter()
@@ -99,7 +109,7 @@ impl Notion {
 
         let page = PageCreateRequest {
             parent: rusticnotion::models::Parent::Database {
-                database_id: new_page.parent_database.id,
+                database_id: new_page.database.id,
             },
             properties,
             children,

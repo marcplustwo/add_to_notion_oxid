@@ -3,14 +3,14 @@ use std::str::FromStr;
 use rusticnotion::{
     ids::PropertyId,
     models::{
-        properties::{Color, External, FileReference, PropertyValue, SelectedValue},
+        properties::{Color, External, FileReference, PropertyValue, SelectOption, SelectedValue},
         text::{RichText, RichTextCommon, Text},
         Database,
     },
 };
 
 pub struct NewPage {
-    pub parent_database: Database,
+    pub database: Database,
     pub name: Option<String>,
     pub url: Option<String>,
     pub image_url: Option<String>,
@@ -80,19 +80,32 @@ impl NewPage {
         }
     }
 
-    pub fn get_tags_property(&self) -> Option<PropertyValue> {
+    pub fn get_tags_property(&self, existing_tags: Vec<SelectOption>) -> Option<PropertyValue> {
         if let Some(tags) = &self.tags {
+            let select_values: Vec<SelectedValue> = tags
+                .iter()
+                .map(|tag_name| {
+                    match existing_tags
+                        .iter()
+                        .find(|existing_tag| existing_tag.name == *tag_name)
+                    {
+                        Some(existing_tag) => SelectedValue {
+                            id: Some(existing_tag.id.clone()),
+                            name: Some(existing_tag.name.clone()),
+                            color: existing_tag.color,
+                        },
+                        None => SelectedValue {
+                            id: None,
+                            name: Some(tag_name.to_string()),
+                            color: Color::Default,
+                        },
+                    }
+                })
+                .collect();
+
             let tags_property: PropertyValue = PropertyValue::MultiSelect {
                 id: self.empty_id(),
-                multi_select: Some(
-                    tags.iter()
-                        .map(|tag| SelectedValue {
-                            id: None,
-                            name: Some(tag.to_string()),
-                            color: Color::Default,
-                        })
-                        .collect(),
-                ),
+                multi_select: Some(select_values),
             };
 
             Some(tags_property)
