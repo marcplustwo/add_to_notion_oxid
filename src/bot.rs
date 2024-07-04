@@ -12,22 +12,46 @@ use teloxide::prelude::*;
 pub async fn run_bot(db: Arc<Database>, img_push: Arc<ImgPush>) {
     let bot = Bot::from_env();
 
-    let cmd_handler = Update::filter_message().branch(
-        dptree::entry()
-            .filter_command::<Command>()
-            .endpoint(handle_command),
-    );
+    // let cmd_handler = dptree::entry()
+    //     .filter_command::<Command>()
+    //     .endpoint(handle_command);
 
-    let msg_handler = Update::filter_message().branch(
-        dptree::filter(|msg: Message, db: Arc<Database>| {
-            let user_details = db.get(&msg.chat.id.to_string()).unwrap();
-            user_details.is_some()
-        })
-        .endpoint(message_handler),
-    );
+    // let msg_handler = dptree::filter(|msg: Message, db: Arc<Database>| {
+    //     let user_details = db.get(&msg.chat.id.to_string()).unwrap();
+    //     user_details.is_some()
+    // })
+    // .endpoint(message_handler);
+
+    // let cmd_handler = ;
+
+    let msg_handler = Update::filter_message()
+        .branch(
+            dptree::entry()
+                .filter_command::<Command>()
+                .endpoint(handle_command),
+        )
+        .branch(
+            dptree::filter(|msg: Message, db: Arc<Database>| {
+                let user_details = db.get(&msg.chat.id.to_string()).unwrap();
+                user_details.is_some()
+            })
+            .endpoint(message_handler),
+        );
 
     let dialogue_handler = Update::filter_message()
         .enter_dialogue::<Message, InMemStorage<State>, State>()
+        .branch(
+            dptree::entry()
+                .filter_command::<Command>()
+                .endpoint(handle_command),
+        )
+        .branch(
+            dptree::filter(|msg: Message, db: Arc<Database>| {
+                let user_details = db.get(&msg.chat.id.to_string()).unwrap();
+                user_details.is_some()
+            })
+            .endpoint(message_handler),
+        )
         .branch(dptree::case![State::Instructions].endpoint(instructions))
         .branch(dptree::case![State::ReceiveIntegrationToken].endpoint(receive_integration_token))
         .branch(
@@ -40,13 +64,14 @@ pub async fn run_bot(db: Arc<Database>, img_push: Arc<ImgPush>) {
                 database_id
             }]
             .endpoint(receive_confirm),
-        )
-        .branch(dptree::case![State::SetupComplete].endpoint(message_handler));
+        );
+    // .branch(
+    //     dptree::case![State::SetupComplete]        );
 
     let handler = Update::filter_message()
-        .branch(dialogue_handler)
-        .branch(cmd_handler)
-        .branch(msg_handler);
+        // .branch(cmd_handler)
+        // .branch(msg_handler)
+        .branch(dialogue_handler);
 
     Dispatcher::builder(bot, handler)
         .dependencies(dptree::deps![InMemStorage::<State>::new(), db, img_push])

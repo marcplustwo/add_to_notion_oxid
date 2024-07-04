@@ -17,3 +17,4 @@ serde = { version = "1.0.203", features = ["derive"] }
 mime = "0.3.17"
 rusqlite = "0.31.0"
 rusticnotion = { git = "https://github.com/marcplustwo/rusticnotion.git" }
+anyhow = "1.0.86"

@@ -107,10 +107,22 @@ pub async fn message_handler(
     let image_url = urls.iter().next();
 
     let notion = Notion::new(user_details.integration_token);
-    let database = notion
-        .get_database_by_id(user_details.database_id)
-        .await
-        .unwrap();
+    let database = match notion.get_database_by_id(user_details.database_id).await {
+        Ok(database) => database,
+        Err(err) => {
+            bot.send_message(
+                msg.chat.id,
+                format!(
+                    "An error occured, when accessing notion: {}",
+                    err.to_string()
+                ),
+            )
+            .reply_to_message_id(msg.id)
+            .await?;
+
+            return Err(err.to_string().into());
+        }
+    };
 
     if !Notion::has_expected_database_properties(&database) {
         let fields = database.properties.keys().collect::<Vec<&String>>();

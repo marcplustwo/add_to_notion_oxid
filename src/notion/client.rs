@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-
+use anyhow::{anyhow, Result};
 use rusticnotion::{
     models::{
         block::{BookmarkFields, CreateBlock, ExternalFileObject},
@@ -9,7 +8,7 @@ use rusticnotion::{
     },
     NotionApi,
 };
-
+use std::collections::HashMap;
 use super::NewPage;
 
 pub struct Notion {
@@ -23,9 +22,9 @@ impl Notion {
         Notion { api }
     }
 
-    pub async fn get_database_by_id(&self, database_id: String) -> Result<Database, String> {
+    pub async fn get_database_by_id(&self, database_id: String) -> Result<Database> {
         let search = NotionSearch::filter_by_databases();
-        let response = self.api.search(search).await.unwrap().only_databases();
+        let response = self.api.search(search).await?.only_databases();
 
         if let Some(database) = response
             .results
@@ -34,7 +33,7 @@ impl Notion {
         {
             Ok(database.to_owned())
         } else {
-            Err("database does not exist".to_string())
+            Err(anyhow!("database does not exist"))
         }
     }
 
