@@ -1,4 +1,4 @@
-use std::{process::exit, sync::Arc};
+use std::sync::Arc;
 
 use teloxide::{dispatching::dialogue::InMemStorage, prelude::*, types::ParseMode};
 
@@ -13,7 +13,6 @@ type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 #[derive(Clone, Default)]
 pub enum State {
     #[default]
-    Start,
     Instructions,
     ReceiveIntegrationToken,
     ReceiveDatabaseId {
@@ -26,18 +25,7 @@ pub enum State {
     SetupComplete,
 }
 
-pub async fn start(
-    bot: Bot,
-    dialogue: SetupDialogue,
-    msg: Message,
-    db: Arc<Database>,
-) -> HandlerResult {
-    let user_details = db.get(&msg.chat.id.to_string())?;
-    if user_details.is_some() {
-        dialogue.update(State::SetupComplete).await?;
-        return Ok(())
-    }
-
+pub async fn instructions(bot: Bot, dialogue: SetupDialogue, msg: Message) -> HandlerResult {
     bot.send_message(msg.chat.id, INSTRUCTIONS_MSG)
         .parse_mode(ParseMode::MarkdownV2)
         .await?;
@@ -83,7 +71,8 @@ pub async fn receive_database_id(
             let report =
                 format!("Integration Token: {integration_token}\nDatabase ID: {database_id}");
 
-            bot.send_message(msg.chat.id, "Please confirm the following data with yes")
+            bot.send_message(msg.chat.id, "Please confirm the following data with _yes_")
+                .parse_mode(ParseMode::MarkdownV2)
                 .await?;
             bot.send_message(msg.chat.id, report).await?;
 
@@ -127,8 +116,8 @@ pub async fn receive_confirm(
                 // dialogue.exit().await?;
                 dialogue.update(State::SetupComplete).await?;
             } else {
-                bot.send_message(msg.chat.id, format!("Try again.")).await?;
-                dialogue.update(State::Start).await?;
+                bot.send_message(msg.chat.id, format!("Try again")).await?;
+                dialogue.update(State::Instructions).await?;
             }
         }
         None => {

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use reqwest::{self, StatusCode};
+use reqwest;
 use serde::Deserialize;
 
 pub struct ImgPush {

@@ -32,27 +32,20 @@ impl Notion {
             .iter()
             .find(|res| res.id.to_string().replace("-", "") == database_id)
         {
-            if Notion::has_expected_database_properties(database.to_owned()) {
-                Ok(database.to_owned())
-            } else {
-                Err(
-                    "database does not have all required fields: Name, Image, URL, Tags"
-                        .to_string(),
-                )
-            }
+            Ok(database.to_owned())
         } else {
             Err("database does not exist".to_string())
         }
     }
 
-    fn has_expected_database_properties(database: Database) -> bool {
-        let properties: Vec<&String> = database.properties.iter().map(|(name, _)| name).collect();
+    pub fn has_expected_database_properties(database: &Database) -> bool {
+        // let properties: Vec<&String> = database.properties.iter().map(|(name, _)| name).collect();
         const EXPECTED_DB_PROPERTIES: [&str; 4] = ["Name", "Image", "URL", "Tags"];
 
         // verify fields
         let db_has_expected_properties = EXPECTED_DB_PROPERTIES
             .iter()
-            .map(|property| properties.contains(&&property.to_string()))
+            .map(|property| database.properties.contains_key(&property.to_string()))
             .all(|x| x);
 
         db_has_expected_properties

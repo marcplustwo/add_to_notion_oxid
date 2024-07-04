@@ -1,20 +1,15 @@
-use std::env;
-use std::{error::Error, sync::Arc};
+use std::error::Error;
+use std::sync::Arc;
 
 use notion::{NewPage, Notion};
 use regex::Regex;
-use teloxide::net::Download;
-use teloxide::payloads::{EditMessageTextSetters, GetFile};
-use teloxide::types::{Document, ParseMode, PhotoSize};
-use teloxide::utils::html::link;
-use teloxide::{prelude::*, utils::command::BotCommands};
-use tokio::fs;
+use teloxide::prelude::*;
+use teloxide::types::{Document, PhotoSize};
 
 use crate::db::Database;
-use crate::handle_dialogue::{SetupDialogue, State};
 use crate::img_push::ImgPush;
 
-fn get_image_id(bot: Bot, image: Option<&[PhotoSize]>) -> Option<String> {
+fn get_image_id(image: Option<&[PhotoSize]>) -> Option<String> {
     let image = match image {
         Some(images) => images.iter().last(),
         None => None,
@@ -26,7 +21,7 @@ fn get_image_id(bot: Bot, image: Option<&[PhotoSize]>) -> Option<String> {
     }
 }
 
-fn get_document_id(bot: Bot, document: Option<&Document>) -> Option<String> {
+fn get_document_id(document: Option<&Document>) -> Option<String> {
     if let Some(document) = document {
         if let Some(mime) = &document.mime_type {
             match (mime.type_(), mime.subtype()) {
@@ -56,7 +51,7 @@ async fn upload_image_file(bot: Bot, img_push: Arc<ImgPush>, file_id: String) ->
 
             Some(image_url)
         }
-        Err(err) => None,
+        Err(_) => None,
     }
 }
 
@@ -67,7 +62,7 @@ struct TextElements {
     pub tags: Option<Vec<String>>,
 }
 
-fn handle_text(bot: Bot, text: String) -> TextElements {
+fn handle_text(text: String) -> TextElements {
     let title = text.lines().next().unwrap_or(&text).to_string();
 
     let links_reg: Regex = Regex::new(r"(https?:\/\/[^\s]+)").unwrap();
@@ -86,24 +81,18 @@ fn handle_text(bot: Bot, text: String) -> TextElements {
 
 pub async fn message_handler(
     bot: Bot,
-    m: Message,
-    dialogue: SetupDialogue,
+    msg: Message,
     db: Arc<Database>,
     img_push: Arc<ImgPush>,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
-    let user_details_query = db.get(&m.chat.id.to_string())?;
-    if user_details_query.is_none() {
-        dialogue.update(State::ReceiveIntegrationToken).await?;
-        return Ok(());
-    }
-
+    let user_details_query = db.get(&msg.chat.id.to_string())?;
     let user_details = user_details_query.unwrap();
 
-    let text = m.text().unwrap_or("").to_string() + m.caption().unwrap_or("");
+    let text = msg.text().unwrap_or("").to_string() + msg.caption().unwrap_or("");
 
-    let text_elements = handle_text(bot.clone(), text);
-    let image_file_id = get_image_id(bot.clone().clone(), m.photo());
-    let document_file_id = get_document_id(bot.clone(), m.document());
+    let text_elements = handle_text(text);
+    let image_file_id = get_image_id(msg.photo());
+    let document_file_id = get_document_id(msg.document());
 
     let mut urls = vec![];
     if let Some(id) = image_file_id {
@@ -125,6 +114,21 @@ pub async fn message_handler(
         .await
         .unwrap();
 
+    if !Notion::has_expected_database_properties(&database) {
+        let fields = database.properties.keys().collect::<Vec<&String>>();
+        let error_message = format!(
+            "Database does not have all required fields: Name, Image, URL, Tags, found: {fields:?}"
+        );
+
+        bot.send_message(
+            msg.chat.id,
+            "Could not create page in Notion: ".to_string() + &error_message,
+        )
+        .await?;
+
+        return Err(error_message.into());
+    };
+
     let new_page = NewPage {
         parent_database: database,
         name: text_elements.title,
@@ -135,13 +139,12 @@ pub async fn message_handler(
     let page = notion.create_page(new_page).await.unwrap();
     let page_id = page.id.to_string().replace("-", "");
 
-    let msg = bot
-        .send_message(
-            m.chat.id,
-            format!("Created page https://notion.so/{page_id}"),
-        )
-        .reply_to_message_id(m.id)
-        .await?;
+    bot.send_message(
+        msg.chat.id,
+        format!("Created page https://notion.so/{page_id}"),
+    )
+    .reply_to_message_id(msg.id)
+    .await?;
 
     Ok(())
 }
